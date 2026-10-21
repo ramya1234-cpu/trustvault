@@ -26,3 +26,24 @@ class UserResponse(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    
+class DocumentCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=255)
+    category: str = Field(default="General", max_length=100)
+
+
+class DocumentResponse(BaseModel):
+    id: int
+    owner_id: int
+    title: str
+    category: str
+    created_at: object
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PermissionGrant(BaseModel):
+    user_id: int
+    can_read: bool = True
+    can_edit: bool = False
+
