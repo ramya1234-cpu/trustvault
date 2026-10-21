@@ -26,7 +26,7 @@ class UserResponse(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    
+
 class DocumentCreate(BaseModel):
     title: str = Field(min_length=1, max_length=255)
     category: str = Field(default="General", max_length=100)
@@ -43,7 +43,6 @@ class DocumentResponse(BaseModel):
 
 
 class PermissionGrant(BaseModel):
-    user_id: int
+    user_id: int = Field(gt=0)
     can_read: bool = True
     can_edit: bool = False
-
