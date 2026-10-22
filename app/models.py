@@ -1,5 +1,5 @@
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import (
     Boolean,
@@ -11,6 +11,10 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class Base(DeclarativeBase):
@@ -27,7 +31,9 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(20), default="viewer")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow
+        DateTime(timezone=True),
+        default=utc_now,
+        nullable=False,
     )
 
 
@@ -40,7 +46,9 @@ class Document(Base):
     category: Mapped[str] = mapped_column(String(100), default="General")
     storage_path: Mapped[str] = mapped_column(String(500))
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow
+        DateTime(timezone=True),
+        default=utc_now,
+        nullable=False,
     )
 
 
@@ -59,7 +67,9 @@ class DocumentPermission(Base):
     can_edit: Mapped[bool] = mapped_column(Boolean, default=False)
     granted_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow
+        DateTime(timezone=True),
+        default=utc_now,
+        nullable=False,
     )
 
 
@@ -68,13 +78,18 @@ class AuditEvent(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     actor_id: Mapped[int | None] = mapped_column(
-        ForeignKey("users.id"), nullable=True
+        ForeignKey("users.id"), nullable=True, index=True
     )
-    action: Mapped[str] = mapped_column(String(80), index=True)
+    action: Mapped[str] = mapped_column(
+        String(80), index=True, nullable=False
+    )
     document_id: Mapped[int | None] = mapped_column(
-        ForeignKey("documents.id"), nullable=True
+        ForeignKey("documents.id"), nullable=True, index=True
     )
-    details: Mapped[str] = mapped_column(Text, default="")
+    details: Mapped[str] = mapped_column(Text, default="", nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, index=True
+        DateTime(timezone=True),
+        default=utc_now,
+        index=True,
+        nullable=False,
     )
