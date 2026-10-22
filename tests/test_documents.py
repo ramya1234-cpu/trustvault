@@ -344,4 +344,96 @@ def test_non_owner_cannot_view_audit_log(test_setup):
     response = client.get(f"/documents/{ids['document']}/audit")
 
     assert response.status_code == 403
+    
+def prepare_test_document(session_factory, document_id):
+    """Create a test file and point the document record to it."""
+    storage_dir = documents_module.STORAGE_DIR
+    storage_dir.mkdir(parents=True, exist_ok=True)
+
+    file_path = storage_dir / "test-document.txt"
+    file_path.write_bytes(b"Hello TrustVault download test")
+
+    with session_factory() as session:
+        document = session.get(Document, document_id)
+        assert document is not None
+        document.storage_path = str(file_path)
+        session.commit()
+
+    return file_path
+
+
+def test_owner_can_download_document(test_setup):
+    client, ids, current_user_id, session_factory = test_setup
+    prepare_test_document(session_factory, ids["document"])
+
+    current_user_id["value"] = ids["owner"]
+    response = client.get(
+        f"/documents/{ids['document']}/download"
+    )
+
+    assert response.status_code == 200
+    assert response.content == b"Hello TrustVault download test"
+
+
+def test_recipient_with_read_permission_can_download(test_setup):
+    client, ids, current_user_id, session_factory = test_setup
+    prepare_test_document(session_factory, ids["document"])
+
+    share_response = client.post(
+        f"/documents/{ids['document']}/share",
+        json={
+            "user_id": ids["recipient"],
+            "can_read": True,
+            "can_edit": False,
+        },
+    )
+    assert share_response.status_code == 201
+
+    current_user_id["value"] = ids["recipient"]
+    response = client.get(
+        f"/documents/{ids['document']}/download"
+    )
+
+    assert response.status_code == 200
+    assert response.content == b"Hello TrustVault download test"
+
+
+def test_revoked_recipient_cannot_download_document(test_setup):
+    client, ids, current_user_id, session_factory = test_setup
+    prepare_test_document(session_factory, ids["document"])
+
+    share_response = client.post(
+        f"/documents/{ids['document']}/share",
+        json={
+            "user_id": ids["recipient"],
+            "can_read": True,
+            "can_edit": False,
+        },
+    )
+    assert share_response.status_code == 201
+
+    revoke_response = client.delete(
+        f"/documents/{ids['document']}/share/{ids['recipient']}"
+    )
+    assert revoke_response.status_code == 204
+
+    current_user_id["value"] = ids["recipient"]
+    response = client.get(
+        f"/documents/{ids['document']}/download"
+    )
+
+    assert response.status_code == 403
+
+
+def test_outsider_cannot_download_document(test_setup):
+    client, ids, current_user_id, session_factory = test_setup
+    prepare_test_document(session_factory, ids["document"])
+
+    current_user_id["value"] = ids["outsider"]
+    response = client.get(
+        f"/documents/{ids['document']}/download"
+    )
+
+    assert response.status_code == 403
+
 

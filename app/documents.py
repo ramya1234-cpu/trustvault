@@ -2,7 +2,15 @@
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    UploadFile,
+    status,
+)
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -100,7 +108,8 @@ def upload_document(
 
     STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 
-    safe_filename = f"{uuid4().hex}_{Path(file.filename or 'document').name}"
+    original_filename = Path(file.filename or "document").name
+    safe_filename = f"{uuid4().hex}_{original_filename}"
     storage_path = STORAGE_DIR / safe_filename
 
     try:
@@ -136,8 +145,10 @@ def upload_document(
 
     except Exception:
         db.rollback()
+
         if storage_path.exists():
             storage_path.unlink()
+
         raise
 
     finally:
@@ -180,6 +191,65 @@ def list_documents(
         }
         for document in documents_by_id.values()
     ]
+
+
+@router.get("/{document_id}/download")
+def download_document(
+    document_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Allow the owner or a user with active read permission to download."""
+    document = db.get(Document, document_id)
+
+    if document is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found",
+        )
+
+    if document.owner_id != user.id:
+        permission = db.scalar(
+            select(DocumentPermission).where(
+                DocumentPermission.document_id == document_id,
+                DocumentPermission.user_id == user.id,
+                DocumentPermission.can_read.is_(True),
+            )
+        )
+
+        if permission is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to read this document",
+            )
+
+    storage_path = Path(document.storage_path).resolve()
+
+    # Prevent stored paths from escaping the application's storage folder.
+    if not storage_path.is_relative_to(STORAGE_DIR.resolve()):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid document storage path",
+        )
+
+    if not storage_path.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document file not found",
+        )
+
+    stored_name = storage_path.name
+    download_name = (
+        stored_name.split("_", 1)[1]
+        if "_" in stored_name
+        else "document"
+    )
+
+    return FileResponse(
+        path=storage_path,
+        filename=download_name,
+        media_type="application/octet-stream",
+    )
 
 
 @router.post(
@@ -327,7 +397,10 @@ def get_document_audit_log(
     events = db.scalars(
         select(AuditEvent)
         .where(AuditEvent.document_id == document_id)
-        .order_by(AuditEvent.created_at.desc(), AuditEvent.id.desc())
+        .order_by(
+            AuditEvent.created_at.desc(),
+            AuditEvent.id.desc(),
+        )
     ).all()
 
     return [
