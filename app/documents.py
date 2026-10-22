@@ -149,12 +149,10 @@ def list_documents(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    # Owners can see their own documents.
     owned_documents = db.scalars(
         select(Document).where(Document.owner_id == user.id)
     ).all()
 
-    # Recipients can see documents only while read permission is active.
     shared_documents = db.scalars(
         select(Document)
         .join(
@@ -304,3 +302,42 @@ def revoke_document_access(
         raise
 
     return None
+
+
+@router.get("/{document_id}/audit")
+def get_document_audit_log(
+    document_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    document = db.get(Document, document_id)
+
+    if document is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found",
+        )
+
+    if document.owner_id != user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the document owner can view its audit log",
+        )
+
+    events = db.scalars(
+        select(AuditEvent)
+        .where(AuditEvent.document_id == document_id)
+        .order_by(AuditEvent.created_at.desc(), AuditEvent.id.desc())
+    ).all()
+
+    return [
+        {
+            "id": event.id,
+            "actor_id": event.actor_id,
+            "action": event.action,
+            "document_id": event.document_id,
+            "details": event.details,
+            "created_at": event.created_at,
+        }
+        for event in events
+    ]

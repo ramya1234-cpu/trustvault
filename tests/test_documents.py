@@ -314,3 +314,34 @@ def test_revoke_creates_audit_event(test_setup):
     assert len(events) == 1
     assert events[0].actor_id == ids["owner"]
     assert f"user_id={ids['recipient']}" in events[0].details
+    
+def test_document_owner_can_view_audit_log(test_setup):
+    client, ids, _, _ = test_setup
+
+    share_response = client.post(
+        f"/documents/{ids['document']}/share",
+        json={
+            "user_id": ids["recipient"],
+            "can_read": True,
+            "can_edit": False,
+        },
+    )
+    assert share_response.status_code == 201
+
+    response = client.get(f"/documents/{ids['document']}/audit")
+
+    assert response.status_code == 200
+    assert any(
+        event["action"] == "document_shared"
+        for event in response.json()
+    )
+
+
+def test_non_owner_cannot_view_audit_log(test_setup):
+    client, ids, current_user_id, _ = test_setup
+    current_user_id["value"] = ids["recipient"]
+
+    response = client.get(f"/documents/{ids['document']}/audit")
+
+    assert response.status_code == 403
+
