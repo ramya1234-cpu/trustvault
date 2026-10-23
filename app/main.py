@@ -1,5 +1,6 @@
 
 from fastapi import FastAPI, HTTPException
+
 from app.documents import router as documents_router
 from app.auth import router as auth_router
 from app.database import check_database
@@ -12,7 +13,6 @@ app = FastAPI(
 
 app.include_router(auth_router)
 app.include_router(documents_router)
-
 
 
 @app.get("/")
@@ -30,8 +30,15 @@ def database_health():
     try:
         check_database()
         return {"database": "connected"}
-    except Exception:
+    except Exception as exc:
+        # Log the actual error for debugging.
+        # Do not expose database credentials in the API response.
+        print(
+            f"Database health check failed: "
+            f"{type(exc).__name__}: {exc}",
+            flush=True,
+        )
         raise HTTPException(
             status_code=503,
             detail="Database unavailable",
-        )
+        ) from exc
