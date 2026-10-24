@@ -28,6 +28,8 @@ def test_setup(tmp_path, monkeypatch):
 
     Base.metadata.create_all(bind=engine)
     monkeypatch.setattr(documents_module, "STORAGE_DIR", tmp_path)
+    monkeypatch.setattr("app.main.engine", engine)
+    monkeypatch.setattr("app.database.engine", engine)
 
     db = TestingSessionLocal()
 

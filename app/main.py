@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 
+from app.admin import router as admin_router
 from app.auth import router as auth_router
 from app.documents import router as documents_router
 from app.database import check_database, engine
@@ -26,6 +27,7 @@ app = FastAPI(
 
 app.include_router(auth_router)
 app.include_router(documents_router)
+app.include_router(admin_router)
 
 
 @app.get("/")
@@ -44,10 +46,9 @@ def database_health():
         check_database()
         return {"database": "connected"}
     except Exception as exc:
-        # Log the actual error without returning credentials to the client.
+        # Log the error safely without returning or logging connection credentials.
         print(
-            f"Database health check failed: "
-            f"{type(exc).__name__}: {exc}",
+            f"Database health check failed: {type(exc).__name__}",
             flush=True,
         )
         raise HTTPException(

@@ -45,6 +45,12 @@ class Document(Base):
     title: Mapped[str] = mapped_column(String(255), index=True)
     category: Mapped[str] = mapped_column(String(100), default="General")
     storage_path: Mapped[str] = mapped_column(String(500))
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        default=None,
+        onupdate=utc_now,
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=utc_now,
@@ -84,9 +90,19 @@ class AuditEvent(Base):
         String(80), index=True, nullable=False
     )
     document_id: Mapped[int | None] = mapped_column(
-        ForeignKey("documents.id"), nullable=True, index=True
+        Integer, nullable=True, index=True
     )
     details: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    prev_hash: Mapped[str | None] = mapped_column(
+        String(64),
+        default="0" * 64,
+        nullable=True,
+    )
+    hash: Mapped[str | None] = mapped_column(
+        String(64),
+        default="",
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=utc_now,

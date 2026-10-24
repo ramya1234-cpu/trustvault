@@ -62,6 +62,28 @@ def get_current_user(
     return user
 
 
+def require_admin(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
+    if user.role != "administrator":
+        from app.audit import record_audit_event
+
+        record_audit_event(
+            db,
+            actor_id=user.id,
+            action="unauthorized_admin_access_attempt",
+            details=f"User {user.id} ({user.email}) attempted to access administrator endpoint",
+        )
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrator access required",
+        )
+
+    return user
+
+
 @router.post(
     "/register",
     response_model=UserResponse,
