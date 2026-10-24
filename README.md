@@ -242,7 +242,7 @@ python -m pytest -q
 
 
 
-The current document test suite has passed \*\*11 tests\*\* in the local development environment.
+The current document test suite has passed \*\*15 tests\*\* in the local development environment.
 
 
 
