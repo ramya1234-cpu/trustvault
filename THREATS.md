@@ -330,7 +330,7 @@ This document identifies key security threats, existing controls, and recommende
 
 
 
-The current document test suite has passed 11 automated tests in the local development environment.
+The current document test suite has passed 15 automated tests in the local development environment.
 
 
 
