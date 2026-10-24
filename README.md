@@ -218,6 +218,144 @@ Public registration always creates standard `viewer` accounts. To promote the fi
 
 ---
 
+## Interactive Demo & Evaluator Walkthrough
+
+This step-by-step walkthrough allows an evaluator to test and verify all core capabilities using Swagger UI (`/docs`) or `curl`:
+
+### Step 1: User Registration
+Register three test accounts (all initially receive the safe `viewer` role):
+```bash
+# 1. Document Owner (Alice)
+curl -X POST "http://127.0.0.1:8000/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "alice@example.com", "full_name": "Alice Owner", "password": "StrongPassword123!"}'
+
+# 2. Authorized Recipient (Bob)
+curl -X POST "http://127.0.0.1:8000/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "bob@example.com", "full_name": "Bob Recipient", "password": "StrongPassword123!"}'
+
+# 3. Unauthorized Outsider (Eve)
+curl -X POST "http://127.0.0.1:8000/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "eve@example.com", "full_name": "Eve Outsider", "password": "StrongPassword123!"}'
+```
+
+### Step 2: Authentication & Token Acquisition
+Log in with each account to obtain JWT Bearer access tokens:
+```bash
+# Obtain ALICE_TOKEN
+curl -X POST "http://127.0.0.1:8000/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "alice@example.com", "password": "StrongPassword123!"}'
+
+# Obtain BOB_TOKEN
+curl -X POST "http://127.0.0.1:8000/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "bob@example.com", "password": "StrongPassword123!"}'
+
+# Obtain EVE_TOKEN
+curl -X POST "http://127.0.0.1:8000/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "eve@example.com", "password": "StrongPassword123!"}'
+```
+
+### Step 3: Document Upload as Owner (Alice)
+Upload a confidential document with title and category:
+```bash
+curl -X POST "http://127.0.0.1:8000/documents/upload?title=Confidential%20Security%20Plan&category=Security" \
+  -H "Authorization: Bearer <ALICE_TOKEN>" \
+  -F "file=@sample.txt"
+# Returns: {"id": 1, "owner_id": 1, "title": "Confidential Security Plan", "category": "Security", ...}
+```
+
+### Step 4: Verify Unauthorized Access Blocking (Outsider Eve)
+Demonstrate that unauthorized users cannot read or download:
+```bash
+# Unauthorized download attempt (Denied with HTTP 403)
+curl -i -X GET "http://127.0.0.1:8000/documents/1/download" \
+  -H "Authorization: Bearer <EVE_TOKEN>"
+
+# Unauthorized details attempt (Returns HTTP 404 to prevent ID enumeration)
+curl -i -X GET "http://127.0.0.1:8000/documents/1" \
+  -H "Authorization: Bearer <EVE_TOKEN>"
+```
+
+### Step 5: Owner Shares Document with Bob
+Alice explicitly grants read-only permission (`can_read=true`, `can_edit=false`) to Bob (`user_id=2`):
+```bash
+curl -X POST "http://127.0.0.1:8000/documents/1/share" \
+  -H "Authorization: Bearer <ALICE_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": 2, "can_read": true, "can_edit": false}'
+# Returns HTTP 201: {"message": "Document shared successfully", ...}
+```
+
+### Step 6: Authorized Download & Search (Bob)
+Bob can now search and download the document:
+```bash
+# Authorized search
+curl -X GET "http://127.0.0.1:8000/documents/search?q=Security" \
+  -H "Authorization: Bearer <BOB_TOKEN>"
+# Returns document metadata with is_owner=false, can_read=true, can_edit=false
+
+# Authorized download
+curl -X GET "http://127.0.0.1:8000/documents/1/download" \
+  -H "Authorization: Bearer <BOB_TOKEN>" \
+  --output downloaded_sample.txt
+```
+
+### Step 7: Immediate Access Revocation
+Alice revokes Bob's access. Bob immediately loses all access rights:
+```bash
+# Alice revokes Bob's permission
+curl -X DELETE "http://127.0.0.1:8000/documents/1/share/2" \
+  -H "Authorization: Bearer <ALICE_TOKEN>"
+# Returns HTTP 204 No Content
+
+# Bob attempts download immediately (Denied with HTTP 403)
+curl -i -X GET "http://127.0.0.1:8000/documents/1/download" \
+  -H "Authorization: Bearer <BOB_TOKEN>"
+
+# Bob searches again (Returns empty list [], zero leakage)
+curl -X GET "http://127.0.0.1:8000/documents/search?q=Security" \
+  -H "Authorization: Bearer <BOB_TOKEN>"
+```
+
+### Step 8: Cryptographic Audit Chain Verification
+Verify the SHA-256 tamper-evident audit trail for the document:
+```bash
+# Alice verifies document audit chain
+curl -X GET "http://127.0.0.1:8000/documents/1/audit/verify" \
+  -H "Authorization: Bearer <ALICE_TOKEN>"
+# Returns:
+# {
+#   "is_valid": true,
+#   "total_events": 5,
+#   "verified_events": 5,
+#   "message": "Audit chain verified successfully across 5 events.",
+#   "tampered_event_id": null
+# }
+```
+
+### Step 9: Administrator System-Wide Governance
+Promote an administrator via CLI and inspect platform audit metadata:
+```bash
+# Bootstrap administrator
+python -m app.bootstrap_admin alice@example.com
+
+# Admin verifies platform-wide audit chain
+curl -X GET "http://127.0.0.1:8000/admin/audit/verify" \
+  -H "Authorization: Bearer <ALICE_TOKEN>"
+# Returns verified audit chain status across all system events
+
+# Admin inspects audit events without disclosing file contents or secrets
+curl -X GET "http://127.0.0.1:8000/admin/audit" \
+  -H "Authorization: Bearer <ALICE_TOKEN>"
+```
+
+---
+
 ## Testing & Quality Verification
 
 Run the full automated test suite using the virtual environment:

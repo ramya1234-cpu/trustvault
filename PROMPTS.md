@@ -90,6 +90,8 @@ This document records how AI tools were used during the development of TrustVaul
 - Whitespace validation: `git diff --check` passed with 0 warnings.
 - Live deployment check: `GET https://trustvault-o3fn.onrender.com/health` returned `{"status": "ok"}`; `GET https://trustvault-o3fn.onrender.com/health/db` returned `{"database": "connected"}`.
 
+**Commit:** `c371246` — Complete TrustVault security hardening and tests.
+
 **Limitations:**
 - Cryptographic hash chaining provides tamper evidence against application and record-level tampering, but cannot prevent a privileged database administrator or compromised database superuser with direct SQL access from modifying table contents and recalculating downstream hashes.
 - The latest local features and migrations have been verified locally; they will become active on the live Render deployment once the reviewed Git commits are pushed and `alembic upgrade head` is executed.
