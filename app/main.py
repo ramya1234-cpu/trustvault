@@ -1,13 +1,26 @@
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException
 
-from app.documents import router as documents_router
 from app.auth import router as auth_router
-from app.database import check_database
+from app.documents import router as documents_router
+from app.database import check_database, engine
+from app.models import Base
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Create any missing database tables when the service starts.
+    # Existing tables and their data are preserved.
+    Base.metadata.create_all(bind=engine)
+    yield
+
 
 app = FastAPI(
     title="TrustVault",
     version="0.1.0",
+    lifespan=lifespan,
     swagger_ui_parameters={"persistAuthorization": True},
 )
 
@@ -31,8 +44,7 @@ def database_health():
         check_database()
         return {"database": "connected"}
     except Exception as exc:
-        # Log the actual error for debugging.
-        # Do not expose database credentials in the API response.
+        # Log the actual error without returning credentials to the client.
         print(
             f"Database health check failed: "
             f"{type(exc).__name__}: {exc}",
